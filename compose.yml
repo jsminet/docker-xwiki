@@ -1,0 +1,73 @@
+services:
+  traefik:
+    image: traefik
+    ports:
+      # Exposes port 80 for incomming web requests
+      - 80:80
+      - 443:443
+      - 8080:8080
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./app/traefik/conf/traefik.yml:/etc/traefik/traefik.yml
+
+  xwiki:
+    image: xwiki:stable-mariadb-tomcat
+    container_name: xwiki
+    environment:
+      - DB_USER
+      - DB_PASSWORD
+      - DB_DATABASE
+      - DB_HOST
+    volumes:
+      - xwiki-data:/usr/local/xwiki
+      #- xwiki-properties:/usr/local/tomcat/webapps/ROOT/WEB-INF/xwiki.properties
+      #- xwiki-hibernate:/usr/local/tomcat/webapps/ROOT/WEB-INF/hibernate.cfg.xml
+      #- xwiki-webxml:/usr/local/tomcat/webapps/ROOT/WEB-INF/web.xml
+      #- xwiki-jgroups:/usr/local/tomcat/webapps/ROOT/WEB-INF/observation/remote/jgroups
+      #- xwiki-logback:/usr/local/tomcat/webapps/ROOT/WEB-INF/classes/logback.xml
+      #- ./app/xwiki/conf:/usr/local/tomcat/webapps/ROOT/WEB-INF/xwiki.cfg
+      #- ./app/tomcat/conf:/usr/local/tomcat/conf
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.xwiki.rule=Host(`$XWIKI_DNS`)"
+      #- "traefik.http.routers.xwiki.tls=true"
+      #- "traefik.http.routers.xwiki.tls.certresolver=http_resolver"
+      - "traefik.http.routers.xwiki.entrypoints=web"
+      - "traefik.http.routers.xwiki.service=xwiki"
+      - "traefik.http.services.xwiki.loadbalancer.server.port=8080"
+    #secrets:
+    #  - xwiki-db-username
+    #  - xwiki-db-password
+
+  mariadb:
+    image: mariadb
+    hostname: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_USER
+      - MYSQL_PASSWORD
+      - MYSQL_DATABASE
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+      - --explicit-defaults-for-timestamp=1
+    volumes:
+      - ./app/mariadb/conf:/etc/mysql/conf.d
+      - ./app/mariadb/scripts:/docker-entrypoint-initdb.d
+      - mariadb-data:/var/lib/mysql
+
+  adminer:
+    image: adminer
+    profiles:
+      - test
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.rule=Host(`$ADMINER_DNS`)"
+      - "traefik.http.routers.adminer.entrypoints=web"
+      - "traefik.http.routers.adminer.service=adminer"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+      
+volumes:
+  mariadb-data:
+  xwiki-data:
